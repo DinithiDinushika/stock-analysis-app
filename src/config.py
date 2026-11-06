@@ -15,10 +15,14 @@ load_dotenv(BASE_DIR / ".env")
 
 # Google Gemini Configuration
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini/gemini-1.5-flash")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini/gemini-2.5-flash")
 
-# Optional Financial Data Keys
-FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY", "")
+# Export both keys into environment so google-genai and LiteLLM can discover them seamlessly
+# if GEMINI_API_KEY:
+#     os.environ["GEMINI_API_KEY"] = GEMINI_API_KEY
+#     os.environ["GOOGLE_API_KEY"] = GEMINI_API_KEY
+
+# Alpha Vantage Configuration (Used for News Sentiment & Company Overview)
 ALPHA_VANTAGE_API_KEY = os.getenv("ALPHA_VANTAGE_API_KEY", "")
 
 

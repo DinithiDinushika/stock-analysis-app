@@ -122,12 +122,43 @@ def get_company_profile(ticker: str) -> Dict[str, Any]:
 
 def get_fundamental_metrics(ticker: str) -> Dict[str, Any]:
     """
-    Fetch only essential fundamental metrics:
+    Fetch essential fundamental metrics:
     - Valuation: Market Capitalization, P/E Ratio
     - Profitability: Earnings Per Share (EPS), Profit Margin (%)
     - Risk & Solvency: Debt-to-Equity, Beta
+    Prioritizes Alpha Vantage Company Overview API if configured, with graceful fallback to Yahoo Finance.
     """
+    import os
+    import requests
     ticker_clean = ticker.strip().upper()
+    av_key = os.getenv("ALPHA_VANTAGE_API_KEY", "").strip()
+
+    # 1. Attempt Alpha Vantage Overview API
+    if av_key:
+        try:
+            url = f"https://www.alphavantage.co/query?function=OVERVIEW&symbol={ticker_clean}&apikey={av_key}"
+            resp = requests.get(url, timeout=5)
+            if resp.status_code == 200:
+                data = resp.json()
+                if "MarketCapitalization" in data and data.get("Symbol") == ticker_clean:
+                    mkt_cap = _safe_float(data.get("MarketCapitalization"))
+                    pm = _safe_float(data.get("ProfitMargin"))
+                    return {
+                        "success": True,
+                        "ticker": ticker_clean,
+                        "source": "Alpha Vantage Company Overview",
+                        "company_name": data.get("Name", ticker_clean),
+                        "market_cap": _format_large_number(mkt_cap),
+                        "pe_ratio": _safe_float(data.get("PERatio")),
+                        "eps": _safe_float(data.get("EPS")),
+                        "profit_margin_pct": round(pm * 100, 2) if pm is not None else None,
+                        "debt_to_equity": _safe_float(data.get("DebtToEquityRatio")),
+                        "beta": _safe_float(data.get("Beta")),
+                    }
+        except Exception:
+            pass  # Fallback to yfinance
+
+    # 2. Fallback to open yfinance data
     try:
         t = yf.Ticker(ticker_clean)
         info = t.info or {}
@@ -139,6 +170,7 @@ def get_fundamental_metrics(ticker: str) -> Dict[str, Any]:
         metrics = {
             "success": True,
             "ticker": ticker_clean,
+            "source": "Open Financial Feed",
             "company_name": info.get("longName") or info.get("shortName") or ticker_clean,
             "market_cap": _format_large_number(market_cap_raw),
             "pe_ratio": _safe_float(info.get("trailingPE") or info.get("forwardPE")),

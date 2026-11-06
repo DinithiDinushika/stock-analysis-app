@@ -1,6 +1,7 @@
 # Multi-Agent Stock Market Intelligence Platform Dependencies
 crewai>=0.100.0
 crewai-tools>=0.30.0
+google-genai>=1.0.0
 streamlit>=1.40.0
 yfinance>=0.2.50
 pandas>=2.2.0
@@ -11,4 +12,3 @@ python-dotenv>=1.0.1
 pydantic>=2.8.0
 requests>=2.32.0
 ta>=0.11.0
-

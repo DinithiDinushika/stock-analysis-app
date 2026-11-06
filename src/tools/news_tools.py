@@ -1,7 +1,7 @@
 """
 Financial news and sentiment extraction tool.
-Retrieves recent headlines, extracts summaries, and computes deterministic sentiment polarity.
-Supports Yahoo Finance news and optional Finnhub News API integration.
+Integrates Alpha Vantage News & Sentiment API with automatic fallback to open financial feeds.
+Retrieves recent headlines, extracts summaries, and computes sentiment polarity.
 """
 
 import os
@@ -12,7 +12,7 @@ import requests
 import yfinance as yf
 from crewai.tools import tool
 
-# Lexicon for deterministic sentiment scoring
+# Lexicon for deterministic sentiment scoring when raw text is evaluated
 BULLISH_KEYWORDS = {
     "beat", "surged", "surge", "jumps", "jumped", "rally", "rallies", "growth",
     "profit", "record", "upgrade", "upgraded", "bullish", "outperform", "dividend",
@@ -52,60 +52,76 @@ def _score_text_sentiment(text: str) -> Dict[str, Any]:
     }
 
 
-def get_stock_news(ticker: str, limit: int = 8) -> Dict[str, Any]:
+def _parse_alphavantage_date(date_str: str) -> str:
+    """Parse Alpha Vantage date string like 20240315T123000 to YYYY-MM-DD HH:MM."""
+    try:
+        dt = datetime.datetime.strptime(date_str[:13], "%Y%m%dT%H%M")
+        return dt.strftime("%Y-%m-%d %H:%M")
+    except Exception:
+        return date_str[:10] if len(date_str) >= 10 else "Recent"
+
+
+def get_stock_news(ticker: str, limit: int = 6) -> Dict[str, Any]:
     """
     Fetch recent financial news articles and assess sentiment polarity.
-    Attempts Finnhub API if configured, otherwise defaults to Yahoo Finance news.
+    Prioritizes Alpha Vantage News & Sentiment API if ALPHA_VANTAGE_API_KEY is configured.
+    Falls back gracefully to Yahoo Finance news on rate limits or missing keys.
     """
     ticker_clean = ticker.strip().upper()
     articles: List[Dict[str, Any]] = []
-    finnhub_key = os.getenv("FINNHUB_API_KEY", "")
+    source_used = "Open Feed"
+    av_key = os.getenv("ALPHA_VANTAGE_API_KEY", "").strip()
 
-    # 1. Attempt Finnhub if key is present
-    if finnhub_key:
+    # 1. Attempt Alpha Vantage News & Sentiment API if key is present
+    if av_key:
         try:
-            today = datetime.date.today()
-            from_date = (today - datetime.timedelta(days=14)).isoformat()
-            to_date = today.isoformat()
-            url = f"https://finnhub.io/api/v1/company-news?symbol={ticker_clean}&from={from_date}&to={to_date}&token={finnhub_key}"
+            url = (
+                f"https://www.alphavantage.co/query"
+                f"?function=NEWS_SENTIMENT&tickers={ticker_clean}&limit={limit}&apikey={av_key}"
+            )
             resp = requests.get(url, timeout=5)
             if resp.status_code == 200:
-                raw_articles = resp.json()
-                for item in raw_articles[:limit]:
-                    headline = item.get("headline", "")
-                    summary = item.get("summary", "")
-                    content = f"{headline}. {summary}"
-                    sentiment = _score_text_sentiment(content)
-                    
-                    published_dt = datetime.datetime.fromtimestamp(item.get("datetime", 0)).strftime("%Y-%m-%d %H:%M")
-                    articles.append({
-                        "title": headline,
-                        "publisher": item.get("source", "Finnhub"),
-                        "published_at": published_dt,
-                        "summary": summary[:250] + ("..." if len(summary) > 250 else ""),
-                        "url": item.get("url", ""),
-                        "sentiment": sentiment["label"]
-                    })
-        except Exception:
-            pass  # Fallback to yfinance
+                data = resp.json()
+                # Check for successful feed output (Alpha Vantage returns 'feed' list)
+                if "feed" in data and isinstance(data["feed"], list) and len(data["feed"]) > 0:
+                    source_used = "Alpha Vantage News & Sentiment API"
+                    for item in data["feed"][:limit]:
+                        av_sentiment = item.get("overall_sentiment_label", "Neutral")
+                        # Normalize label to Bullish / Bearish / Neutral
+                        if "Bullish" in av_sentiment:
+                            norm_sentiment = "Bullish"
+                        elif "Bearish" in av_sentiment:
+                            norm_sentiment = "Bearish"
+                        else:
+                            norm_sentiment = "Neutral"
 
-    # 2. Fallback to yfinance news
+                        time_pub = _parse_alphavantage_date(item.get("time_published", ""))
+                        articles.append({
+                            "title": item.get("title", ""),
+                            "publisher": item.get("source", "Alpha Vantage"),
+                            "published_at": time_pub,
+                            "summary": item.get("summary", "")[:250] + "...",
+                            "url": item.get("url", ""),
+                            "sentiment": norm_sentiment,
+                        })
+        except Exception:
+            pass  # Seamless fallback to open feed
+
+    # 2. Fallback to open yfinance feed if Alpha Vantage is not configured or rate-limited
     if not articles:
         try:
             t = yf.Ticker(ticker_clean)
             raw_news = getattr(t, "news", []) or []
             for item in raw_news[:limit]:
-                # yfinance nested format support
                 content_obj = item.get("content", {}) if "content" in item else item
                 title = content_obj.get("title") or item.get("title", "")
                 summary = content_obj.get("summary") or item.get("summary", "")
                 publisher = (
                     content_obj.get("provider", {}).get("displayName")
                     if isinstance(content_obj.get("provider"), dict)
-                    else item.get("publisher", "Yahoo Finance")
+                    else item.get("publisher", "Financial Wire")
                 )
                 
-                # Timestamp parsing
                 pub_time = content_obj.get("pubDate") or item.get("providerPublishTime")
                 if isinstance(pub_time, (int, float)):
                     pub_str = datetime.datetime.fromtimestamp(pub_time).strftime("%Y-%m-%d %H:%M")
@@ -114,7 +130,6 @@ def get_stock_news(ticker: str, limit: int = 8) -> Dict[str, Any]:
                 else:
                     pub_str = "Recent"
 
-                # Link
                 canonical = content_obj.get("canonicalUrl", {})
                 url = canonical.get("url", "") if isinstance(canonical, dict) else item.get("link", "")
 
@@ -137,7 +152,7 @@ def get_stock_news(ticker: str, limit: int = 8) -> Dict[str, Any]:
                 "articles": []
             }
 
-    # Aggregate sentiment
+    # Aggregate sentiment breakdown
     bullish_count = sum(1 for a in articles if a["sentiment"] == "Bullish")
     bearish_count = sum(1 for a in articles if a["sentiment"] == "Bearish")
     neutral_count = len(articles) - (bullish_count + bearish_count)
@@ -152,6 +167,7 @@ def get_stock_news(ticker: str, limit: int = 8) -> Dict[str, Any]:
     return {
         "success": True,
         "ticker": ticker_clean,
+        "source": source_used,
         "total_articles": len(articles),
         "overall_sentiment": overall,
         "sentiment_breakdown": {
@@ -171,8 +187,8 @@ def get_stock_news(ticker: str, limit: int = 8) -> Dict[str, Any]:
 def get_stock_news_tool(ticker: str) -> str:
     """
     Fetches the latest news headlines, publication dates, summaries, and sentiment polarity 
-    for a given stock ticker symbol. Helps identify catalysts, earnings beats/misses, and corporate developments.
+    for a given stock ticker symbol using Alpha Vantage News & Sentiment API (with automatic fallback).
+    Helps identify catalysts, earnings surprises, and corporate developments.
     """
     data = get_stock_news(ticker, limit=6)
     return json.dumps(data, indent=2)
-

@@ -12,18 +12,29 @@ import yfinance as yf
 from crewai.tools import tool
 
 
-def get_historical_ohlcv(ticker: str, period: str = "1y", interval: str = "1d") -> pd.DataFrame:
+def get_historical_ohlcv(
+    ticker: str,
+    start_date: str = None,
+    end_date: str = None,
+    period: str = "1y",
+    interval: str = "1d"
+) -> pd.DataFrame:
     """
     Fetch historical Open, High, Low, Close, Volume data for a given ticker.
-    Supported periods: '1mo', '3mo', '6mo', '1y', '2y', '5y'.
+    Supports either explicit start_date and end_date ('YYYY-MM-DD') or standard period ('1mo', '1y', etc.).
     """
     ticker_clean = ticker.strip().upper()
-    valid_periods = ["1mo", "3mo", "6mo", "1y", "2y", "5y", "max"]
-    if period not in valid_periods:
-        period = "1y"
-
     t = yf.Ticker(ticker_clean)
-    df = t.history(period=period, interval=interval)
+
+    if start_date and end_date:
+        df = t.history(start=start_date, end=end_date, interval=interval)
+    elif start_date:
+        df = t.history(start=start_date, interval=interval)
+    else:
+        valid_periods = ["1mo", "3mo", "6mo", "1y", "2y", "5y", "max"]
+        if period not in valid_periods:
+            period = "1y"
+        df = t.history(period=period, interval=interval)
     
     if df.empty:
         return pd.DataFrame()
@@ -146,13 +157,17 @@ def calculate_technical_indicators(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict
 # ==========================================
 
 @tool("Get Technical Analysis and Indicators Tool")
-def get_technical_analysis_tool(ticker: str, period: str = "1y") -> str:
+def get_technical_analysis_tool(ticker: str, start_date: str = None, end_date: str = None) -> str:
     """
-    Computes essential technical indicators for a given stock ticker over a period ('1mo', '3mo', '6mo', '1y', '5y').
+    Computes essential technical indicators for a given stock ticker over a date range ('start_date' to 'end_date' in 'YYYY-MM-DD').
     Returns exact numbers for RSI (14), MACD (12, 26, 9), SMA 50, SMA 200, 
     30-Day Annualized Volatility (%), and Maximum Drawdown (%).
     """
-    df = get_historical_ohlcv(ticker, period=period)
+    df = get_historical_ohlcv(ticker, start_date=start_date, end_date=end_date)
+    if df.empty:
+        # Fallback to 1y if empty
+        df = get_historical_ohlcv(ticker, period="1y")
+
     if df.empty:
         return json.dumps({
             "success": False,
@@ -161,5 +176,5 @@ def get_technical_analysis_tool(ticker: str, period: str = "1y") -> str:
 
     _, summary = calculate_technical_indicators(df)
     summary["ticker"] = ticker.upper()
-    summary["period_analyzed"] = period
+    summary["date_range"] = f"{start_date} to {end_date}" if start_date and end_date else "Default 1Y"
     return json.dumps(summary, indent=2)

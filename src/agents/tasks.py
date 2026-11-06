@@ -10,7 +10,8 @@ from crewai import Agent, Task
 
 def create_stock_analysis_tasks(
     ticker: str,
-    period: str,
+    start_date: str,
+    end_date: str,
     agents: Tuple[Agent, Agent, Agent, Agent, Agent]
 ) -> List[Task]:
     """
@@ -23,13 +24,13 @@ def create_stock_analysis_tasks(
     # 1. Technical Task (Worker)
     technical_task = Task(
         description=(
-            f"Analyze price action and quantitative momentum for '{ticker_clean}' over the '{period}' period.\n"
-            f"- Fetch technical indicators via 'Get Technical Analysis and Indicators Tool' (RSI, MACD, 50 SMA, 200 SMA, 30-Day Volatility %, Max Drawdown %).\n"
+            f"Analyze price action and quantitative momentum for '{ticker_clean}' over the date range from '{start_date}' to '{end_date}'.\n"
+            f"- Fetch technical indicators via 'Get Technical Analysis and Indicators Tool' with start_date='{start_date}' and end_date='{end_date}' (RSI, MACD, 50 SMA, 200 SMA, 30-Day Volatility %, Max Drawdown %).\n"
             f"- Fetch current quote via 'Get Stock Quote Tool' (Price, Day Change %, 52-Week Range).\n"
-            f"- Evaluate trend direction (Golden/Death Cross, Price vs 50/200 SMA), momentum (RSI overbought/oversold, MACD signal cross), and historical risk."
+            f"- Evaluate trend direction (Golden/Death Cross, Price vs 50/200 SMA), momentum (RSI overbought/oversold, MACD signal cross), and historical risk across the selected date range."
         ),
         expected_output=(
-            f"A structured technical summary for {ticker_clean} containing:\n"
+            f"A structured technical summary for {ticker_clean} from {start_date} to {end_date} containing:\n"
             f"- Exact values: Price, 50 SMA, 200 SMA, RSI (14), MACD, 30-Day Volatility %, Max Drawdown %\n"
             f"- Trend status (Bullish / Bearish / Neutral)\n"
             f"- Key support and resistance levels"
