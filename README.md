@@ -81,7 +81,7 @@ The exact same 5 domain agents power **both** workflows without code duplication
 A critical design principle of this platform is the strict separation of **Deterministic Math** from **LLM Reasoning**:
 - **Zero Math Hallucination**: LLMs never compute RSI, moving averages, or drawdowns. Indicators are calculated deterministically in Python using `pandas` and `numpy`.
 - **Fact-Checking Gatekeeper**: The Risk Auditor reviews claims against verified tool outputs before the Chief Strategist synthesizes the dossier.
-- **Trust Badges**: Visual indicators clearly distinguish verified financial figures from qualitative AI interpretations.
+- **Pure Agentic Presentation**: The interface focuses strictly on autonomous committee findings, individual specialist reasoning, adversarial risk audits, and the final executive dossiers generated directly by the AI agents.
 
 ---
 

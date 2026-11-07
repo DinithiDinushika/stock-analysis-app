@@ -4,11 +4,8 @@ Demonstrating Multi-Agent Collaboration, Autonomous Tool Calling, and Adversaria
 Powered by CrewAI, Streamlit, and Google Gemini.
 """
 
-import os
 import datetime
 import streamlit as st
-import pandas as pd
-from dotenv import load_dotenv
 
 # Page configuration
 st.set_page_config(
@@ -22,14 +19,6 @@ from src.config import GEMINI_API_KEY, GEMINI_MODEL, ALPHA_VANTAGE_API_KEY
 from src.crew import (
     run_stock_analysis_crew,
     run_market_scanner_crew,
-)
-from src.ui.charts import (
-    create_stock_candlestick_chart,
-    create_sector_performance_chart,
-)
-from src.ui.components import (
-    render_verified_badge,
-    # render_disclaimer,
 )
 from src.ui.export_pdf import generate_dossier_pdf
 
@@ -63,19 +52,6 @@ with st.sidebar:
     else:
         st.caption("⚪ Alpha Vantage: Optional (Open feed fallback)")
 
-    # st.markdown("---")
-    # st.markdown("### 🏛️ The 5-Agent Architecture")
-    # st.markdown(
-    #     """
-    #     **Worker–Critic–Synthesizer Pattern:**
-    #     1. 📊 **Technical Analyst** *(Worker)*: Calls indicators tool for RSI, MACD, 50/200 SMAs & Drawdown.
-    #     2. 🏢 **Fundamental Analyst** *(Worker)*: Calls metrics tool for P/E, EPS, Solvency & Margins.
-    #     3. 📰 **News Analyst** *(Worker)*: Calls news tool to extract catalysts & sentiment polarity.
-    #     4. 🛡️ **Risk Auditor** *(Critic)*: Pokes holes in the bull thesis & audits numbers against facts.
-    #     5. 📑 **Chief Strategist** *(Synthesizer)*: Weights evidence and authors the final dossier.
-    #     """
-    # )
-
 
 # -------------------------------------------------------------
 # WORKFLOW 1: SINGLE STOCK DEEP-DIVE
@@ -83,10 +59,6 @@ with st.sidebar:
 if workflow_mode == "🎯 Single Stock Deep-Dive":
 
     st.markdown("# Autonomous Single Stock Intelligence")
-    # st.markdown(
-    #     "Deploy a **5-Agent Crew** to autonomously gather real-time data, compute quantitative indicators, "
-    #     "evaluate corporate fundamentals, analyze news sentiment, audit downside risks, and author a comprehensive investment brief."
-    # )
 
     # User Input Panel with From and To Date Pickers (Default 3-month window)
     today = datetime.date.today()
@@ -167,11 +139,8 @@ if workflow_mode == "🎯 Single Stock Deep-Dive":
         res = st.session_state[cache_key]
         full_dossier = res.get("report", "")
         agent_outputs = res.get("agent_outputs", {})
-        chart_df = res.get("chart_df", pd.DataFrame())
-        quote_data = res.get("quote_data", {})
 
         st.markdown("---")
-        render_verified_badge()
 
         # Display tabs for each agent in the committee
         tab_dossier, tab_tech, tab_fund, tab_news, tab_risk = st.tabs([
@@ -216,11 +185,6 @@ if workflow_mode == "🎯 Single Stock Deep-Dive":
             )
             st.markdown(tech_text)
 
-            if not chart_df.empty:
-                st.markdown("#### 📈 Price Action, 50/200 SMAs & RSI Chart")
-                fig = create_stock_candlestick_chart(chart_df, active_ticker)
-                st.plotly_chart(fig, use_container_width=True)
-
         # Tab 3: Fundamental Specialist Output
         with tab_fund:
             st.markdown("### 🏢 Lead Equity Research Analyst Report")
@@ -249,19 +213,7 @@ if workflow_mode == "🎯 Single Stock Deep-Dive":
             st.markdown(risk_text)
 
     else:
-        # Initial Landing State: Clean explanation of the Agentic AI system
         st.info("👆 Enter a ticker symbol above and click **'🚀 Launch Multi-Agent Workflow'** to start the autonomous committee.")
-
-        # st.markdown("### 💡 How the Agentic AI Workflow Operates")
-        # st.markdown(
-        #     """
-        #     This platform does not display hardcoded or pre-rendered dashboards. Every piece of intelligence is produced through **Agentic AI collaboration**:
-        #     - **No Prompt Engineering Shortcuts**: Instead of one large prompt, 5 specialized agents execute in sequence.
-        #     - **Autonomous Tool Calling**: Agents invoke Python tools (`@tool`) to retrieve verified exchange prices and calculate mathematical indicators (RSI, MACD, 50/200 SMA).
-        #     - **Adversarial Reflection**: The **Risk Auditor** independently reviews the numbers to prevent LLM hallucinations and constructs the Bear Case.
-        #     - **Executive Synthesis**: The **Chief Strategist** weights all evidence to produce a publication-ready investment brief.
-        #     """
-        # )
 
 
 # -------------------------------------------------------------
@@ -269,10 +221,6 @@ if workflow_mode == "🎯 Single Stock Deep-Dive":
 # -------------------------------------------------------------
 else:
     st.markdown("# Autonomous Market Trend & Movers Scanner")
-    # st.markdown(
-    #     "Deploy the **same 5-Agent Committee** to scan market-wide movers (Top Gainers, Losers, and Volume Leaders), "
-    #     "explain the **exact news catalysts** behind their moves, evaluate sector rotation, and screen for speculative penny-stock traps."
-    # )
 
     st.markdown("---")
     scan_col1, scan_col2 = st.columns([1, 3])
@@ -306,20 +254,11 @@ else:
     if scan_cache_key in st.session_state and st.session_state[scan_cache_key].get("success"):
         res = st.session_state[scan_cache_key]
         report_text = res.get("report", "")
-        sector_data = res.get("sector_data", {})
-        movers_data = res.get("movers_data", {})
 
         st.markdown("---")
-        render_verified_badge()
 
         # Display the Agent's Master Report
         st.markdown(report_text)
-
-        # Supporting visual data generated during the scan
-        if sector_data.get("success"):
-            st.markdown("### 📊 S&P 500 Sector Rotation (Analyzed by Technical Analyst)")
-            sec_fig = create_sector_performance_chart(sector_data.get("sectors", []))
-            st.plotly_chart(sec_fig, use_container_width=True)
 
         m_col1, m_col2 = st.columns(2)
         with m_col1:
@@ -345,14 +284,3 @@ else:
 
     else:
         st.info("👆 Click **'🚀 Launch Multi-Agent Market Scan'** above to trigger the 5-agent team across the market.")
-
-        # st.markdown(
-        #     """
-        #     - **Dynamic Role Repurposing**: We don't define a separate scanner agent. The same 5 core specialists handle both single stocks and market-wide trends.
-        #     - **Explaining the 'Why'**: The News Analyst specifically connects market mover percentage changes to breaking real-world corporate news.
-        #     - **Quality vs. Speculation**: The Fundamental Analyst protects investors by screening whether rallies are backed by real profit margins or speculative momentum.
-        #     """
-        # )
-
-# Regulatory Disclaimer
-# render_disclaimer()
